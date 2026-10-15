@@ -29,40 +29,92 @@ const welcome = `👋 **Olá! Converse com o banco Oracle em linguagem natural.*
 💡 Clique em *tool calls MCP* abaixo de cada resposta para ver as consultas executadas.`;
 
 const html = `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Pergunte ao SQLite</title>
+<title>Pergunte ao banco Oracle</title>
 <style>
-*{box-sizing:border-box}body{margin:0;font:15px system-ui;background:#0f1115;color:#e6e6e6;display:flex;flex-direction:column;height:100vh}
-header{padding:14px 20px;background:#171a21;border-bottom:1px solid #262b36;font-weight:600}
-#chat{flex:1;overflow:auto;padding:20px;display:flex;flex-direction:column;gap:12px;max-width:820px;width:100%;margin:0 auto}
-.m{padding:10px 14px;border-radius:12px;max-width:85%;white-space:pre-wrap;line-height:1.45}
-.u{align-self:flex-end;background:#2d5bff}.b{align-self:flex-start;background:#1c2029}
-details{margin-top:8px;font-size:12px;color:#9aa4b5}pre{white-space:pre-wrap;margin:4px 0;background:#12151b;padding:6px;border-radius:6px}
-.b{white-space:normal}.b table{border-collapse:collapse;margin:8px 0;font-size:13px}.b th,.b td{border:1px solid #2c3342;padding:4px 8px;text-align:left}.b th{background:#12151b}.b code{background:#12151b;padding:1px 4px;border-radius:4px}.b pre code{background:none;padding:0}.b p{margin:6px 0}.b ul,.b ol{margin:6px 0;padding-left:22px}
-.meta{font-size:11px;color:#7b8598;margin-top:6px}
-form{display:flex;gap:8px;padding:14px 20px;background:#171a21;border-top:1px solid #262b36;max-width:820px;width:100%;margin:0 auto}
-input{flex:1;padding:12px;border-radius:10px;border:1px solid #2c3342;background:#0f1115;color:inherit;font:inherit}
-button{padding:0 20px;border:0;border-radius:10px;background:#2d5bff;color:#fff;font:inherit;cursor:pointer}button:disabled{opacity:.5}
+:root{--bg:#0b0d12;--panel:#12151c;--panel2:#181c25;--line:#232938;--text:#e8eaf0;--muted:#8d97ab;--accent:#6c8cff;--accent2:#8b5cf6;--ok:#34d399;--code:#0d1017}
+*{box-sizing:border-box}html,body{height:100%}
+body{margin:0;font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;background:radial-gradient(1200px 600px at 50% -200px,#1a2040 0,var(--bg) 60%);color:var(--text);display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:12px;padding:14px 24px;border-bottom:1px solid var(--line);background:rgba(18,21,28,.8);backdrop-filter:blur(8px)}
+.logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;font-size:18px}
+header h1{font-size:15px;margin:0;font-weight:650}header small{display:block;color:var(--muted);font-size:12px;font-weight:400}
+.badge{margin-left:auto;font-size:11px;color:var(--ok);border:1px solid rgba(52,211,153,.35);background:rgba(52,211,153,.08);padding:4px 10px;border-radius:999px}
+#chat{flex:1;overflow-y:auto;scroll-behavior:smooth}
+.wrap{max-width:860px;margin:0 auto;padding:24px 20px 8px;display:flex;flex-direction:column;gap:22px}
+.row{display:flex;gap:12px;align-items:flex-start}.row.u{flex-direction:row-reverse}
+.av{flex:none;width:32px;height:32px;border-radius:10px;display:grid;place-items:center;font-size:16px;background:var(--panel2);border:1px solid var(--line)}
+.row.b .av{background:linear-gradient(135deg,var(--accent),var(--accent2));border:0}
+.msg{min-width:0;max-width:calc(100% - 46px)}
+.row.u .msg{background:linear-gradient(135deg,#4562e8,#6c4de6);padding:10px 16px;border-radius:16px 4px 16px 16px;white-space:pre-wrap;box-shadow:0 4px 18px rgba(76,92,232,.25)}
+.row.b .msg{background:var(--panel);border:1px solid var(--line);padding:14px 18px;border-radius:4px 16px 16px 16px;overflow-wrap:anywhere}
+.msg>:first-child{margin-top:0}.msg>:last-child{margin-bottom:0}
+.msg h1,.msg h2,.msg h3{margin:14px 0 6px;line-height:1.3}.msg h1{font-size:19px}.msg h2{font-size:17px}.msg h3{font-size:15px}
+.msg p{margin:8px 0}.msg ul,.msg ol{margin:8px 0;padding-left:22px}.msg li{margin:3px 0}
+.msg a{color:var(--accent)}.msg hr{border:0;border-top:1px solid var(--line);margin:14px 0}
+.msg blockquote{margin:8px 0;padding:4px 12px;border-left:3px solid var(--accent);color:var(--muted)}
+.msg code{font:12.5px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--code);border:1px solid var(--line);padding:1px 6px;border-radius:6px;color:#c3d0ff}
+.msg pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow:auto;margin:10px 0}
+.msg pre code{background:none;border:0;padding:0;color:#d6defa;white-space:pre}
+.tw{overflow-x:auto;margin:10px 0;border:1px solid var(--line);border-radius:10px}
+.msg table{border-collapse:collapse;width:100%;font-size:13.5px}
+.msg th{background:var(--panel2);text-align:left;font-weight:600;color:#cfd6ea;white-space:nowrap}
+.msg th,.msg td{padding:8px 12px;border-bottom:1px solid var(--line)}
+.msg tbody tr:nth-child(even){background:rgba(255,255,255,.025)}.msg tbody tr:hover{background:rgba(108,140,255,.08)}.msg tbody tr:last-child td{border-bottom:0}
+.meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);font-size:11.5px;color:var(--muted)}
+.chip{border:1px solid var(--line);background:var(--panel2);padding:2px 9px;border-radius:999px}
+details.tools{margin-top:10px;font-size:12.5px}details.tools summary{cursor:pointer;color:var(--muted);user-select:none}details.tools summary:hover{color:var(--text)}
+.tc{margin-top:8px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--code)}
+.tc b{display:block;padding:6px 12px;background:var(--panel2);color:#b9c6ff;font:12px ui-monospace,Menlo,monospace}
+.tc pre{margin:0;border:0;border-radius:0;max-height:200px;font-size:12px;color:#aab4cc}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.chips button{background:var(--panel2);color:var(--text);border:1px solid var(--line);padding:7px 12px;border-radius:999px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
+.chips button:hover{border-color:var(--accent);background:rgba(108,140,255,.12);transform:translateY(-1px)}
+.typing{display:inline-flex;gap:5px;padding:4px 0}.typing i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:b 1.2s infinite}.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes b{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-4px)}}
+.err{color:#fca5a5}
+footer{padding:12px 20px 18px}
+form{max-width:860px;margin:0 auto;display:flex;gap:10px;align-items:flex-end;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:8px 8px 8px 16px;transition:.15s}
+form:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(108,140,255,.15)}
+textarea{flex:1;resize:none;border:0;outline:0;background:transparent;color:var(--text);font:inherit;max-height:160px;padding:8px 0}
+textarea::placeholder{color:var(--muted)}
+form button{width:40px;height:40px;border:0;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-size:18px;cursor:pointer;transition:.15s}
+form button:hover{filter:brightness(1.12)}form button:disabled{opacity:.4;cursor:not-allowed}
+.hint{max-width:860px;margin:8px auto 0;text-align:center;font-size:11.5px;color:var(--muted)}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#262c3d;border-radius:8px}
 </style>
-<header>🗄️ Pergunte ao banco Oracle (MCP + Groq)</header>
-<div id="chat"><div class="m b" id="welcome"></div></div>
-<form id="f"><input id="q" placeholder="Ex.: Quanto cada cliente gastou?" autocomplete="off" autofocus><button>Enviar</button></form>
+<header><div class="logo">🗄️</div><h1>Pergunte ao banco Oracle<small>MCP + Groq · linguagem natural</small></h1><span class="badge">🔒 somente leitura</span></header>
+<div id="chat"><div class="wrap" id="wrap"></div></div>
+<footer><form id="f"><textarea id="q" rows="1" placeholder="Pergunte algo sobre o banco…" autofocus></textarea><button id="send" title="Enviar">➤</button></form><div class="hint">Enter envia · Shift+Enter quebra linha</div></footer>
 <script src="/marked.js"></script>
 <script>
-const chat=document.getElementById('chat'),f=document.getElementById('f'),q=document.getElementById('q'),btn=f.querySelector('button');
+const chat=document.getElementById('chat'),wrap=document.getElementById('wrap'),f=document.getElementById('f'),q=document.getElementById('q'),btn=document.getElementById('send');
 const WELCOME=__WELCOME__;
-welcome.innerHTML=marked.parse(WELCOME,{gfm:true,breaks:true});
-const add=(t,c)=>{const d=document.createElement('div');d.className='m '+c;d.textContent=t;chat.appendChild(d);chat.scrollTop=1e9;return d};
-f.onsubmit=async e=>{e.preventDefault();const text=q.value.trim();if(!text)return;q.value='';add(text,'u');
- const b=add('pensando…','b');btn.disabled=true;
+const EXAMPLES=['Quantas tabelas existem em cada schema?','Quais tabelas do schema OBRA existem?','Liste 10 subações do schema FINANCEIRO','Quais colunas tem a tabela FINANCEIRO.FN_TAUX_CREDOR?'];
+const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const md=s=>{const d=document.createElement('div');d.innerHTML=marked.parse(esc(s),{gfm:true,breaks:true});
+ d.querySelectorAll('table').forEach(t=>{const w=document.createElement('div');w.className='tw';t.replaceWith(w);w.appendChild(t)});return d.innerHTML};
+const scroll=()=>chat.scrollTo({top:chat.scrollHeight});
+function add(kind,html){const r=document.createElement('div');r.className='row '+kind;
+ r.innerHTML='<div class="av">'+(kind==='u'?'🙂':'🤖')+'</div><div class="msg"></div>';
+ const m=r.querySelector('.msg');if(kind==='u')m.textContent=html;else m.innerHTML=html;wrap.appendChild(r);scroll();return m}
+const w=add('b',md(WELCOME));
+const ch=document.createElement('div');ch.className='chips';
+EXAMPLES.forEach(t=>{const b=document.createElement('button');b.type='button';b.textContent=t;b.onclick=()=>{q.value=t;send()};ch.appendChild(b)});w.appendChild(ch);
+q.addEventListener('input',()=>{q.style.height='auto';q.style.height=q.scrollHeight+'px'});
+q.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
+f.onsubmit=e=>{e.preventDefault();send()};
+async function send(){const text=q.value.trim();if(!text||btn.disabled)return;q.value='';q.style.height='auto';add('u',text);
+ const b=add('b','<span class="typing"><i></i><i></i><i></i></span>');btn.disabled=true;const t0=Date.now();
  try{const r=await fetch('/ask',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({question:text})});
   const j=await r.json();if(!r.ok)throw new Error(j.error);
-  const esc=j.answer.replace(/&/g,'&amp;').replace(/</g,'&lt;');
-  b.innerHTML=marked.parse(esc,{gfm:true,breaks:true});
-  const m=document.createElement('div');m.className='meta';m.textContent='chamadas Groq: '+j.apiCalls;b.appendChild(m);
-  if(j.calls.length){const d=document.createElement('details');d.innerHTML='<summary>'+j.calls.length+' tool call(s) MCP</summary>';
-   j.calls.forEach(c=>{const p=document.createElement('pre');p.textContent=c.name+' '+JSON.stringify(c.args)+'\\n→ '+c.result.slice(0,500);d.appendChild(p)});b.appendChild(d)}
- }catch(err){b.textContent='Erro: '+err.message}
- btn.disabled=false;q.focus();chat.scrollTop=1e9};
+  b.innerHTML=md(j.answer);
+  const m=document.createElement('div');m.className='meta';
+  m.innerHTML='<span class="chip">⚡ '+j.apiCalls+' chamadas Groq</span><span class="chip">🔧 '+j.calls.length+' tool calls</span><span class="chip">⏱ '+((Date.now()-t0)/1000).toFixed(1)+'s</span>';
+  b.appendChild(m);
+  if(j.calls.length){const d=document.createElement('details');d.className='tools';d.innerHTML='<summary>Ver consultas executadas (MCP)</summary>';
+   j.calls.forEach(c=>{const x=document.createElement('div');x.className='tc';const h=document.createElement('b');h.textContent=c.name;
+    const p=document.createElement('pre');p.textContent=(c.args.sqlQuery||JSON.stringify(c.args))+'\\n\\n→ '+c.result.slice(0,600);x.append(h,p);d.appendChild(x)});b.appendChild(d)}
+ }catch(err){b.innerHTML='<span class="err">⚠️ '+esc(err.message)+'</span>'}
+ btn.disabled=false;q.focus();scroll()}
 </script></html>`;
 
 let busy = false;
