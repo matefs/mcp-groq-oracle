@@ -1,4 +1,4 @@
-import { createAgent } from "./agent.ts";
+import { createAgent, recoverToolCall } from "./agent.ts";
 
 const agent = await createAgent();
 let pass = 0, fail = 0;
@@ -50,6 +50,12 @@ for (const bad of [
 }
 check("mcp: SQL invalido devolve erro", (await tool("execute_readonly_query", { sqlQuery: "SELECT * FROM nao_existe_xyz" })).err);
 check("mcp: limite de linhas", JSON.parse((await tool("execute_readonly_query", { sqlQuery: "SELECT level FROM dual CONNECT BY level <= 500" })).text).length === 100);
+
+// --- recuperacao de tool call invalida da Groq (sem rede) ---
+const fakeErr = { error: { error: { code: "tool_use_failed", failed_generation: JSON.stringify({ name: "commentary", arguments: { sqlQuery: "SELECT 1 FROM dual" } }) } } };
+const rec = recoverToolCall(fakeErr);
+check("recover: 'commentary' vira execute_readonly_query", rec?.name === "execute_readonly_query" && rec.args.sqlQuery === "SELECT 1 FROM dual");
+check("recover: ignora outros erros", recoverToolCall({ error: { error: { code: "x" } } }) === null);
 
 // --- e2e com LLM: so com --e2e (1 pergunta) ---
 if (process.argv.includes("--e2e")) {

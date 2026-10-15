@@ -6,6 +6,28 @@ const markedJs = readFileSync("node_modules/marked/lib/marked.umd.js");
 const agent = await createAgent();
 const PORT = Number(process.env.PORT ?? 3000);
 
+const schemas = (process.env.ORACLE_SCHEMAS ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+const welcome = `👋 **Olá! Converse com o banco Oracle em linguagem natural.**
+
+🔒 **Acesso somente leitura (SELECT).** Nada é alterado no banco.
+
+**Schemas disponíveis:** ${schemas.map((x) => "`" + x + "`").join(", ") || "todos os que o usuário enxerga"}
+
+**Como fazer uma boa pergunta**
+- Cite o **schema** e o **assunto**: _"Liste 10 fornecedores do schema FINANCEIRO"_
+- Diga **quantos** resultados quer: _"os 10 mais recentes"_ (máx. ${process.env.ROW_LIMIT ?? 100} linhas por consulta)
+- Use **termos de negócio** (credor, pagamento, aquisição). O modelo procura nos comentários das tabelas.
+- Peça **filtros claros**: período, status, código.
+- Seja **específico**, uma pergunta por vez, e peça para detalhar a anterior se precisar.
+
+**Exemplos**
+- _Quais tabelas do schema OBRA existem?_
+- _Quais colunas tem a tabela FINANCEIRO.FN_TAUX_CREDOR?_
+- _Quantas tabelas existem em cada schema?_
+- _Me dê 10 registros de subações do FINANCEIRO_
+
+💡 Clique em *tool calls MCP* abaixo de cada resposta para ver as consultas executadas.`;
+
 const html = `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pergunte ao SQLite</title>
 <style>
@@ -22,11 +44,13 @@ input{flex:1;padding:12px;border-radius:10px;border:1px solid #2c3342;background
 button{padding:0 20px;border:0;border-radius:10px;background:#2d5bff;color:#fff;font:inherit;cursor:pointer}button:disabled{opacity:.5}
 </style>
 <header>🗄️ Pergunte ao banco Oracle (MCP + Groq)</header>
-<div id="chat"><div class="m b">Olá! Pergunte algo sobre o banco em linguagem natural.</div></div>
+<div id="chat"><div class="m b" id="welcome"></div></div>
 <form id="f"><input id="q" placeholder="Ex.: Quanto cada cliente gastou?" autocomplete="off" autofocus><button>Enviar</button></form>
 <script src="/marked.js"></script>
 <script>
 const chat=document.getElementById('chat'),f=document.getElementById('f'),q=document.getElementById('q'),btn=f.querySelector('button');
+const WELCOME=__WELCOME__;
+welcome.innerHTML=marked.parse(WELCOME,{gfm:true,breaks:true});
 const add=(t,c)=>{const d=document.createElement('div');d.className='m '+c;d.textContent=t;chat.appendChild(d);chat.scrollTop=1e9;return d};
 f.onsubmit=async e=>{e.preventDefault();const text=q.value.trim();if(!text)return;q.value='';add(text,'u');
  const b=add('pensando…','b');btn.disabled=true;
@@ -44,7 +68,7 @@ f.onsubmit=async e=>{e.preventDefault();const text=q.value.trim();if(!text)retur
 let busy = false;
 const server = createServer(async (req, res) => {
   if (req.method === "GET" && req.url === "/") {
-    res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(html);
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(html.replace("__WELCOME__", () => JSON.stringify(welcome).replace(/</g, "\\u003c")));
     return;
   }
   if (req.method === "GET" && req.url === "/marked.js") {
