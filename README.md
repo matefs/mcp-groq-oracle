@@ -12,8 +12,8 @@ Navegador / CLI ──► agent (Groq, tool calling) ──► MCP client ──
 
 ## Instalação
 ```bash
-git clone https://github.com/matefs/mcp-groq-sqlite.git
-cd mcp-groq-sqlite
+git clone https://github.com/matefs/mcp-groq-oracle.git
+cd mcp-groq-oracle
 npm install
 cp .env.example .env     # edite e coloque sua GROQ_TOKEN
 ```

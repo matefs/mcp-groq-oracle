@@ -1,5 +1,5 @@
 {
-  "name": "mcp-groq-sqlite",
+  "name": "mcp-groq-oracle",
   "version": "1.0.0",
   "type": "module",
   "scripts": {
