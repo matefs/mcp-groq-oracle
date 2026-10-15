@@ -1,0 +1,24 @@
+{
+  "name": "mcp-groq-sqlite",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "seed": "tsx seed.ts",
+    "start": "tsx --env-file=.env web.ts",
+    "cli": "tsx --env-file=.env client.ts",
+    "ask": "tsx --env-file=.env cli.ts",
+    "test": "tsx --env-file=.env test.ts",
+    "test:e2e": "tsx --env-file=.env test.ts --e2e"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "better-sqlite3": "^13.0.3",
+    "groq-sdk": "^1.6.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
