@@ -23,6 +23,8 @@ const ltj = lt.err ? { total: 0, tabelas: [] } : JSON.parse(lt.text);
 const tables = ltj.tabelas;
 check("mcp: list_tables FINANCEIRO (total real)", tables.length > 0 && ltj.total >= tables.length, lt.text);
 
+const sum = await tool("list_tables");
+check("mcp: list_tables sem filtro = resumo por schema", !sum.err && JSON.parse(sum.text).resumo_por_schema.length >= 6, sum.text);
 const search = await tool("list_tables", { search: "FORNEC" });
 check("mcp: list_tables search", !search.err, search.text);
 

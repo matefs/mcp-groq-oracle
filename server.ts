@@ -44,8 +44,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: "object",
         properties: {
-          search: { type: "string", description: "Trecho do nome/comentario da tabela (opcional)" },
-          owner: { type: "string", description: "Schema/owner (opcional)" },
+          search: { type: ["string", "null"], description: "Trecho do nome/comentario da tabela (opcional, pode ser null)" },
+          owner: { type: ["string", "null"], description: "Schema/owner (opcional, pode ser null)" },
         },
       },
     },
@@ -80,6 +80,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const owner = ident(args?.owner);
       const search = String(args?.search ?? "").toUpperCase().slice(0, 60);
       const owners = owner ? [owner] : SCHEMAS;
+      if (!owner && !search) {
+        const ow = SCHEMAS.length ? SCHEMAS : [""];
+        const b: Record<string, unknown> = {};
+        const inList = SCHEMAS.length ? `WHERE owner IN (${ow.map((o, i) => ((b[`o${i}`] = o), `:o${i}`)).join(",")})` : "";
+        const r = await withConnection((c) => c.execute(`SELECT owner, COUNT(*) AS tabelas FROM all_tables ${inList} GROUP BY owner ORDER BY owner`, b as any));
+        return text({ resumo_por_schema: r.rows, dica: "Para ver tabelas de um schema, chame list_tables com owner e/ou search." });
+      }
       const binds: Record<string, unknown> = {};
       let where = "WHERE 1=1";
       if (owners.length) {
