@@ -1,41 +1,56 @@
-import { createAgent, recoverToolCall } from "./agent.ts";
+import { createAgent, recoverToolCallFromGroqError } from "./agent.ts";
+import { TOOL_NAMES, maxRowsPerQuery } from "./config.ts";
 
 const agent = await createAgent();
-let pass = 0, fail = 0;
-const check = (name: string, ok: boolean, info = "") => {
-  ok ? pass++ : fail++;
-  console.log(`${ok ? "PASS" : "FAIL"} ${name}${ok ? "" : "  " + info}`);
-};
-const tool = async (name: string, args: any = {}) => {
-  const r: any = await agent.mcp.callTool({ name, arguments: args });
-  return { err: !!r.isError, text: r.content[0].text as string };
-};
+let passedCount = 0;
+let failedCount = 0;
 
-// --- Camada MCP (sem LLM, zero chamadas Groq) ---
-const tools = (await agent.mcp.listTools()).tools.map((t) => t.name).sort();
-check("mcp: lista 3 tools", tools.join() === "execute_readonly_query,get_table_schema,list_tables", tools.join());
-
-const q = await tool("execute_readonly_query", { sqlQuery: "SELECT 1 AS n FROM dual;" });
-check("mcp: conecta e executa SELECT", !q.err && JSON.parse(q.text)[0].N === 1, q.text);
-
-const lt = await tool("list_tables", { owner: "FINANCEIRO" });
-const ltj = lt.err ? { total: 0, tabelas: [] } : JSON.parse(lt.text);
-const tables = ltj.tabelas;
-check("mcp: list_tables FINANCEIRO (total real)", tables.length > 0 && ltj.total >= tables.length, lt.text);
-
-const sum = await tool("list_tables");
-check("mcp: list_tables sem filtro = resumo por schema", !sum.err && JSON.parse(sum.text).resumo_por_schema.length >= 6, sum.text);
-const search = await tool("list_tables", { search: "FORNEC" });
-check("mcp: list_tables search", !search.err, search.text);
-
-if (tables[0]) {
-  const s = await tool("get_table_schema", { owner: tables[0].OWNER, tableName: tables[0].TABLE_NAME });
-  check("mcp: get_table_schema", !s.err && JSON.parse(s.text).columns.length > 0, s.text);
-  const cnt = await tool("execute_readonly_query", { sqlQuery: `SELECT COUNT(*) c FROM ${tables[0].OWNER}.${tables[0].TABLE_NAME}` });
-  check("mcp: count em tabela real", !cnt.err, cnt.text);
+function assertCheck(testName: string, isSuccessful: boolean, failureDetails = ""): void {
+  isSuccessful ? passedCount++ : failedCount++;
+  console.log(`${isSuccessful ? "PASS" : "FAIL"} ${testName}${isSuccessful ? "" : "  " + failureDetails}`);
 }
 
-for (const bad of [
+async function callMcpTool(toolName: string, toolArguments: Record<string, unknown> = {}) {
+  const toolResult: any = await agent.mcpClient.callTool({ name: toolName, arguments: toolArguments });
+  return { isError: !!toolResult.isError, text: toolResult.content[0].text as string };
+}
+
+const registeredToolNames = (await agent.mcpClient.listTools()).tools.map((tool) => tool.name).sort();
+const expectedToolNames = Object.values(TOOL_NAMES).sort();
+assertCheck("mcp: lista 3 tools", registeredToolNames.join() === expectedToolNames.join(), registeredToolNames.join());
+
+const selectFromDual = await callMcpTool(TOOL_NAMES.executeReadonlyQuery, { sqlQuery: "SELECT 1 AS n FROM dual;" });
+assertCheck("mcp: conecta e executa SELECT", !selectFromDual.isError && JSON.parse(selectFromDual.text)[0].N === 1, selectFromDual.text);
+
+const financeiroTables = await callMcpTool(TOOL_NAMES.listTables, { owner: "FINANCEIRO" });
+const financeiroTablesJson = financeiroTables.isError ? { total: 0, tabelas: [] } : JSON.parse(financeiroTables.text);
+const firstTables = financeiroTablesJson.tabelas;
+assertCheck(
+  "mcp: list_tables FINANCEIRO (total real)",
+  firstTables.length > 0 && financeiroTablesJson.total >= firstTables.length,
+  financeiroTables.text,
+);
+
+const schemaSummary = await callMcpTool(TOOL_NAMES.listTables);
+assertCheck(
+  "mcp: list_tables sem filtro = resumo por schema",
+  !schemaSummary.isError && JSON.parse(schemaSummary.text).resumo_por_schema.length >= 6,
+  schemaSummary.text,
+);
+const searchResult = await callMcpTool(TOOL_NAMES.listTables, { search: "FORNEC" });
+assertCheck("mcp: list_tables search", !searchResult.isError, searchResult.text);
+
+const sampleTable = firstTables[0];
+if (sampleTable) {
+  const tableSchema = await callMcpTool(TOOL_NAMES.getTableSchema, { owner: sampleTable.OWNER, tableName: sampleTable.TABLE_NAME });
+  assertCheck("mcp: get_table_schema", !tableSchema.isError && JSON.parse(tableSchema.text).columns.length > 0, tableSchema.text);
+  const rowCount = await callMcpTool(TOOL_NAMES.executeReadonlyQuery, {
+    sqlQuery: `SELECT COUNT(*) c FROM ${sampleTable.OWNER}.${sampleTable.TABLE_NAME}`,
+  });
+  assertCheck("mcp: count em tabela real", !rowCount.isError, rowCount.text);
+}
+
+const forbiddenStatements = [
   "DELETE FROM financeiro.x",
   "DROP TABLE x",
   "UPDATE x SET a=1",
@@ -44,25 +59,38 @@ for (const bad of [
   "BEGIN NULL; END;",
   "SELECT * FROM dual FOR UPDATE",
   "CREATE TABLE zz (a number)",
-]) {
-  const r = await tool("execute_readonly_query", { sqlQuery: bad });
-  check(`mcp: bloqueia '${bad}'`, r.err && /permitid/.test(r.text), r.text);
+];
+for (const forbiddenSql of forbiddenStatements) {
+  const rejection = await callMcpTool(TOOL_NAMES.executeReadonlyQuery, { sqlQuery: forbiddenSql });
+  assertCheck(`mcp: bloqueia '${forbiddenSql}'`, rejection.isError && /permitid/.test(rejection.text), rejection.text);
 }
-check("mcp: SQL invalido devolve erro", (await tool("execute_readonly_query", { sqlQuery: "SELECT * FROM nao_existe_xyz" })).err);
-check("mcp: limite de linhas", JSON.parse((await tool("execute_readonly_query", { sqlQuery: "SELECT level FROM dual CONNECT BY level <= 500" })).text).length === 100);
 
-// --- recuperacao de tool call invalida da Groq (sem rede) ---
-const fakeErr = { error: { error: { code: "tool_use_failed", failed_generation: JSON.stringify({ name: "commentary", arguments: { sqlQuery: "SELECT 1 FROM dual" } }) } } };
-const rec = recoverToolCall(fakeErr);
-check("recover: 'commentary' vira execute_readonly_query", rec?.name === "execute_readonly_query" && rec.args.sqlQuery === "SELECT 1 FROM dual");
-check("recover: ignora outros erros", recoverToolCall({ error: { error: { code: "x" } } }) === null);
+const invalidTableQuery = await callMcpTool(TOOL_NAMES.executeReadonlyQuery, { sqlQuery: "SELECT * FROM nao_existe_xyz" });
+assertCheck("mcp: SQL invalido devolve erro", invalidTableQuery.isError);
 
-// --- e2e com LLM: so com --e2e (1 pergunta) ---
+const manyRowsQuery = await callMcpTool(TOOL_NAMES.executeReadonlyQuery, { sqlQuery: "SELECT level FROM dual CONNECT BY level <= 500" });
+assertCheck("mcp: limite de linhas", JSON.parse(manyRowsQuery.text).length === maxRowsPerQuery);
+
+const fakeToolUseFailedError = {
+  error: {
+    error: {
+      code: "tool_use_failed",
+      failed_generation: JSON.stringify({ name: "commentary", arguments: { sqlQuery: "SELECT 1 FROM dual" } }),
+    },
+  },
+};
+const recoveredToolCall = recoverToolCallFromGroqError(fakeToolUseFailedError);
+assertCheck(
+  "recover: 'commentary' vira execute_readonly_query",
+  recoveredToolCall?.name === TOOL_NAMES.executeReadonlyQuery && recoveredToolCall.args.sqlQuery === "SELECT 1 FROM dual",
+);
+assertCheck("recover: ignora outros erros", recoverToolCallFromGroqError({ error: { error: { code: "x" } } }) === null);
+
 if (process.argv.includes("--e2e")) {
   const { answer, calls, apiCalls } = await agent.ask("Quais tabelas do schema OBRA existem?");
-  check(`e2e: pergunta (${apiCalls} chamadas Groq)`, calls.length > 0 && answer.length > 0, answer);
+  assertCheck(`e2e: pergunta (${apiCalls} chamadas Groq)`, calls.length > 0 && answer.length > 0, answer);
 }
 
-console.log(`\n${pass} passed, ${fail} failed`);
+console.log(`\n${passedCount} passed, ${failedCount} failed`);
 await agent.close();
-process.exit(fail ? 1 : 0);
+process.exit(failedCount ? 1 : 0);

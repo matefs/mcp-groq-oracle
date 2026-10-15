@@ -48,8 +48,8 @@ Exemplos: *"Quais tabelas do schema OBRA existem?"*, *"Qual tabela guarda fornec
 ## Segurança
 - Queries validadas (somente `SELECT`/`WITH`, sem `;`, sem DML/DDL/PLSQL) e sessão com `SET TRANSACTION READ ONLY`. Use de preferência um usuário Oracle só com SELECT.
 - A web escuta apenas em `127.0.0.1` e **não tem autenticação**: não exponha na internet.
-- Cada pergunta usa em geral 2 a 6 chamadas à Groq; o loop é limitado a 8 rodadas.
+- Cada pergunta usa em geral 2 a 6 chamadas à Groq; o loop é limitado a 10 rodadas.
 - Nunca commite o `.env` (já está no `.gitignore`).
 
 ## Estrutura
-`server.ts` servidor MCP · `agent.ts` loop LLM + MCP · `web.ts` interface web · `client.ts` CLI interativo · `cli.ts` pergunta única · `test.ts` testes
+`server.ts` servidor MCP · `oracle-repository.ts` consultas Oracle · `readonly-query-guard.ts` validação de SQL somente leitura · `config.ts` variáveis de ambiente · `agent.ts` loop LLM + MCP · `web.ts` + `chat-page.html` interface web · `client.ts` CLI interativo · `cli.ts` pergunta única · `test.ts` testes

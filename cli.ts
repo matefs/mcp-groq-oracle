@@ -1,15 +1,18 @@
 import { createAgent } from "./agent.ts";
 
-const args = process.argv.slice(2);
-const verbose = args.includes("-v") || args.includes("--verbose");
-const question = args.filter((a) => !a.startsWith("-")).join(" ");
+const commandLineArguments = process.argv.slice(2);
+const isVerbose = commandLineArguments.includes("-v") || commandLineArguments.includes("--verbose");
+const question = commandLineArguments.filter((argument) => !argument.startsWith("-")).join(" ");
+
 if (!question) {
   console.error('Uso: npm run ask -- [-v] "sua pergunta"');
   process.exit(2);
 }
-const agent = await createAgent({ verbose });
+
+const agent = await createAgent({ verbose: isVerbose });
 try {
-  console.log((await agent.ask(question)).answer);
+  const { answer } = await agent.ask(question);
+  console.log(answer);
 } finally {
   await agent.close();
 }
