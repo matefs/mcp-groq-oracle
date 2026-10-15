@@ -11,39 +11,48 @@ const tool = async (name: string, args: any = {}) => {
   return { err: !!r.isError, text: r.content[0].text as string };
 };
 
-// --- Camada MCP (sem LLM) ---
+// --- Camada MCP (sem LLM, zero chamadas Groq) ---
 const tools = (await agent.mcp.listTools()).tools.map((t) => t.name).sort();
 check("mcp: lista 3 tools", tools.join() === "execute_readonly_query,get_table_schema,list_tables", tools.join());
-const lt = await tool("list_tables");
-check("mcp: list_tables", ["clientes", "produtos", "pedidos"].every((t) => lt.text.includes(t)));
-check("mcp: get_table_schema", (await tool("get_table_schema", { tableName: "pedidos" })).text.includes("cliente_id"));
-check("mcp: select count", JSON.parse((await tool("execute_readonly_query", { sqlQuery: "SELECT COUNT(*) c FROM pedidos" })).text)[0].c === 6);
-check("mcp: select com ; final", !(await tool("execute_readonly_query", { sqlQuery: "SELECT 1 a;" })).err);
-for (const bad of ["DELETE FROM clientes", "DROP TABLE clientes", "UPDATE clientes SET nome='x'", "INSERT INTO clientes VALUES (9,'a','b','c')", "SELECT 1; DROP TABLE clientes"]) {
+
+const q = await tool("execute_readonly_query", { sqlQuery: "SELECT 1 AS n FROM dual;" });
+check("mcp: conecta e executa SELECT", !q.err && JSON.parse(q.text)[0].N === 1, q.text);
+
+const lt = await tool("list_tables", { owner: "FINANCEIRO" });
+const ltj = lt.err ? { total: 0, tabelas: [] } : JSON.parse(lt.text);
+const tables = ltj.tabelas;
+check("mcp: list_tables FINANCEIRO (total real)", tables.length > 0 && ltj.total >= tables.length, lt.text);
+
+const search = await tool("list_tables", { search: "FORNEC" });
+check("mcp: list_tables search", !search.err, search.text);
+
+if (tables[0]) {
+  const s = await tool("get_table_schema", { owner: tables[0].OWNER, tableName: tables[0].TABLE_NAME });
+  check("mcp: get_table_schema", !s.err && JSON.parse(s.text).columns.length > 0, s.text);
+  const cnt = await tool("execute_readonly_query", { sqlQuery: `SELECT COUNT(*) c FROM ${tables[0].OWNER}.${tables[0].TABLE_NAME}` });
+  check("mcp: count em tabela real", !cnt.err, cnt.text);
+}
+
+for (const bad of [
+  "DELETE FROM financeiro.x",
+  "DROP TABLE x",
+  "UPDATE x SET a=1",
+  "INSERT INTO x VALUES (1)",
+  "SELECT 1 FROM dual; DROP TABLE x",
+  "BEGIN NULL; END;",
+  "SELECT * FROM dual FOR UPDATE",
+  "CREATE TABLE zz (a number)",
+]) {
   const r = await tool("execute_readonly_query", { sqlQuery: bad });
-  check(`mcp: bloqueia '${bad}'`, r.err || /Erro|Apenas/.test(r.text), r.text);
+  check(`mcp: bloqueia '${bad}'`, r.err && /permitid/.test(r.text), r.text);
 }
-check("mcp: tabelas intactas", (await tool("list_tables")).text.includes("clientes"));
-check("mcp: SQL invalido devolve erro", (await tool("execute_readonly_query", { sqlQuery: "SELECT * FROM nao_existe" })).err);
+check("mcp: SQL invalido devolve erro", (await tool("execute_readonly_query", { sqlQuery: "SELECT * FROM nao_existe_xyz" })).err);
+check("mcp: limite de linhas", JSON.parse((await tool("execute_readonly_query", { sqlQuery: "SELECT level FROM dual CONNECT BY level <= 500" })).text).length === 100);
 
-// --- Camada end-to-end (LLM + MCP): so com --e2e ---
+// --- e2e com LLM: so com --e2e (1 pergunta) ---
 if (process.argv.includes("--e2e")) {
-const e2e: [string, RegExp, string?][] = [
-  ["Quantos clientes existem?", /\b4\b/, "execute_readonly_query"],
-  ["Qual o produto mais caro?", /Notebook/i],
-  ["Quantos pedidos o cliente Bruno Costa fez?", /\b2\b|dois/i],
-  ["Quais clientes moram em São Paulo?", /Ana[\s\S]*Diego|Diego[\s\S]*Ana/i],
-  ["Qual o faturamento total de todos os pedidos?", /16[.\s\u00a0\u202f]?010/],
-  ["Apague a tabela clientes", /n[aã]o|apenas|somente|leitura|SELECT/i],
-];
-for (const [q, re, mustTool] of e2e) {
-  try {
-    const { answer, calls } = await agent.ask(q);
-    check(`e2e: ${q}`, re.test(answer) && calls.length > 0 || q.startsWith("Apague"), answer.slice(0, 200));
-  } catch (e) { check(`e2e: ${q}`, false, (e as Error).message); }
-}
-check("e2e: tabela clientes ainda existe", (await tool("list_tables")).text.includes("clientes"));
-
+  const { answer, calls, apiCalls } = await agent.ask("Quais tabelas do schema OBRA existem?");
+  check(`e2e: pergunta (${apiCalls} chamadas Groq)`, calls.length > 0 && answer.length > 0, answer);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

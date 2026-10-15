@@ -18,7 +18,7 @@ form{display:flex;gap:8px;padding:14px 20px;background:#171a21;border-top:1px so
 input{flex:1;padding:12px;border-radius:10px;border:1px solid #2c3342;background:#0f1115;color:inherit;font:inherit}
 button{padding:0 20px;border:0;border-radius:10px;background:#2d5bff;color:#fff;font:inherit;cursor:pointer}button:disabled{opacity:.5}
 </style>
-<header>🗄️ Pergunte ao banco SQLite (MCP + Groq)</header>
+<header>🗄️ Pergunte ao banco Oracle (MCP + Groq)</header>
 <div id="chat"><div class="m b">Olá! Pergunte algo sobre o banco em linguagem natural.</div></div>
 <form id="f"><input id="q" placeholder="Ex.: Quanto cada cliente gastou?" autocomplete="off" autofocus><button>Enviar</button></form>
 <script>
